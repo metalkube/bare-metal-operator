@@ -17,6 +17,8 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"fmt"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
@@ -80,16 +82,15 @@ type FirmwareSchema struct {
 }
 
 // Check whether the setting's name and value is valid using the schema
-func (host *FirmwareSchema) CheckSettingIsValid(name string, value intstr.IntOrString, schemas map[string]SettingSchema) bool {
+func (host *FirmwareSchema) CheckSettingIsValid(name string, value intstr.IntOrString, schemas map[string]SettingSchema) error {
 
 	schema, ok := schemas[name]
 	if !ok {
-		// The setting must exist in the status
-		return false
+		return fmt.Errorf("Setting %s is not in the schema", name)
 	}
 
 	if schema.ReadOnly != nil && *schema.ReadOnly == true {
-		return false
+		return fmt.Errorf("Setting %s is ReadOnly", name)
 	}
 
 	// Check if valid based on type
@@ -97,39 +98,49 @@ func (host *FirmwareSchema) CheckSettingIsValid(name string, value intstr.IntOrS
 	case "Enumeration":
 		for _, av := range schema.AllowableValues {
 			if value.String() == av {
-				return true
+				return nil
 			}
 		}
-		return false
+		return fmt.Errorf("Setting %s uses invalid enum %s", name, value.String())
 
 	case "Integer":
 		if schema.LowerBound == nil || schema.UpperBound == nil {
 			// return true if no settings to check validity
-			return true
+			return nil
 		}
-		return (value.IntValue() >= *schema.LowerBound && value.IntValue() <= *schema.UpperBound)
+		if value.IntValue() >= *schema.LowerBound && value.IntValue() <= *schema.UpperBound {
+			return nil
+		}
+		return fmt.Errorf("Setting %s integer %s is out of range, %d - %d", name, value.String(), *schema.LowerBound, *schema.UpperBound)
 
 	case "String":
 		if schema.MinLength == nil || schema.MaxLength == nil {
 			// return true if no settings to check validity
-			return true
+			return nil
 		}
-		return (len(value.String()) >= *schema.MinLength && len(value.String()) <= *schema.MaxLength)
+		strLen := len(value.String())
+		if strLen >= *schema.MinLength && strLen <= *schema.MaxLength {
+			return nil
+		}
+		return fmt.Errorf("Setting %s string %s length is out of range, %d - %d", name, value.String(), *schema.MinLength, *schema.MaxLength)
 
 	case "Boolean":
-		return (value.String() == "true" || value.String() == "false")
+		if value.String() == "true" || value.String() == "false" {
+			return nil
+		}
+		return fmt.Errorf("Setting %s is not a boolean - %s", name, value.String())
 
 	case "Password":
 		// Prevent sets of password types
-		return false
+		return fmt.Errorf("Setting %s is a Password type", name)
 
 	case "":
 		// allow the set as BIOS registry fields may not have been available
-		return true
+		return nil
 
 	default:
 		// Unexpected attribute type
-		return false
+		return fmt.Errorf("Setting %s has an unexpected attribute type %s", name, schema.AttributeType)
 	}
 }
 
