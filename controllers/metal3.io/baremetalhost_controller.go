@@ -775,15 +775,15 @@ func (r *BareMetalHostReconciler) actionPreparing(prov provisioner.Provisioner, 
 	}
 
 	prepareData := provisioner.PrepareData{
-		TargetRAIDConfig:  newStatus.Provisioning.RAID.DeepCopy(),
-		ExistedRAIDConfig: info.host.Status.Provisioning.RAID,
+		CurrentRAIDConfig: newStatus.Provisioning.RAID.DeepCopy(),
+		ActualRAIDConfig:  info.host.Status.Provisioning.RAID.DeepCopy(),
 		RootDeviceHints:   newStatus.Provisioning.RootDeviceHints.DeepCopy(),
 		FirmwareConfig:    newStatus.Provisioning.Firmware.DeepCopy(),
 	}
 	// When manual cleaning fails, we think that the existed RAID configuration
 	// is invalid and needs to be reconfigured.
 	if info.host.Status.ErrorType == metal3v1alpha1.PreparationError {
-		prepareData.ExistedRAIDConfig = nil
+		prepareData.ActualRAIDConfig = nil
 		dirty = true
 	}
 	provResult, started, err := prov.Prepare(prepareData, dirty)

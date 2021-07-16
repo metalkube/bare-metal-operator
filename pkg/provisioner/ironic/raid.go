@@ -15,7 +15,7 @@ import (
 
 // setTargetRAIDCfg set the RAID settings to the ironic Node for RAID configuration steps
 func setTargetRAIDCfg(p *ironicProvisioner, raidInterface string, ironicNode *nodes.Node, data provisioner.PrepareData) (err error) {
-	err = checkRAIDConfigure(raidInterface, data.TargetRAIDConfig)
+	err = checkRAIDConfigure(raidInterface, data.CurrentRAIDConfig)
 	if err != nil {
 		return err
 	}
@@ -23,7 +23,7 @@ func setTargetRAIDCfg(p *ironicProvisioner, raidInterface string, ironicNode *no
 	var logicalDisks []nodes.LogicalDisk
 
 	// Build target for RAID configuration steps
-	logicalDisks, err = BuildTargetRAIDCfg(data.TargetRAIDConfig)
+	logicalDisks, err = BuildTargetRAIDCfg(data.CurrentRAIDConfig)
 	if len(logicalDisks) == 0 || err != nil {
 		return
 	}
@@ -144,8 +144,8 @@ func buildTargetSoftwareRAIDCfg(volumes []metal3v1alpha1.SoftwareRAIDVolume) (lo
 }
 
 // BuildRAIDCleanSteps build the clean steps for RAID configuration from BaremetalHost spec
-func BuildRAIDCleanSteps(raidInterface string, target *metal3v1alpha1.RAIDConfig, existed *metal3v1alpha1.RAIDConfig) (cleanSteps []nodes.CleanStep, err error) {
-	err = checkRAIDConfigure(raidInterface, target)
+func BuildRAIDCleanSteps(raidInterface string, current *metal3v1alpha1.RAIDConfig, actual *metal3v1alpha1.RAIDConfig) (cleanSteps []nodes.CleanStep, err error) {
+	err = checkRAIDConfigure(raidInterface, current)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +170,7 @@ func BuildRAIDCleanSteps(raidInterface string, target *metal3v1alpha1.RAIDConfig
 				},
 			}...,
 		)
-		if target == nil || len(target.SoftwareRAIDVolumes) == 0 {
+		if current == nil || len(current.SoftwareRAIDVolumes) == 0 {
 			return
 		}
 		cleanSteps = append(
@@ -185,13 +185,13 @@ func BuildRAIDCleanSteps(raidInterface string, target *metal3v1alpha1.RAIDConfig
 
 	// Hardware RAID
 	// Ignore SoftwareRAIDVolumes
-	if target != nil {
-		target.SoftwareRAIDVolumes = nil
+	if current != nil {
+		current.SoftwareRAIDVolumes = nil
 	}
-	if existed != nil {
-		existed.SoftwareRAIDVolumes = nil
+	if actual != nil {
+		actual.SoftwareRAIDVolumes = nil
 	}
-	if reflect.DeepEqual(target, existed) {
+	if reflect.DeepEqual(current, actual) {
 		return
 	}
 
@@ -206,7 +206,7 @@ func BuildRAIDCleanSteps(raidInterface string, target *metal3v1alpha1.RAIDConfig
 	)
 
 	// If hardware raid configuration is empty, only need to clear old configuration
-	if target == nil || len(target.HardwareRAIDVolumes) == 0 {
+	if current == nil || len(current.HardwareRAIDVolumes) == 0 {
 		return
 	}
 
