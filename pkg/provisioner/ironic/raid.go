@@ -13,6 +13,11 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	noRAIDInterface       string = "no-raid"
+	softwareRAIDInterface string = "agent"
+)
+
 // setTargetRAIDCfg set the RAID settings to the ironic Node for RAID configuration steps
 func setTargetRAIDCfg(p *ironicProvisioner, raidInterface string, ironicNode *nodes.Node, data provisioner.PrepareData) (err error) {
 	err = checkRAIDConfigure(raidInterface, data.CurrentRAIDConfig)
@@ -151,12 +156,12 @@ func BuildRAIDCleanSteps(raidInterface string, current *metal3v1alpha1.RAIDConfi
 	}
 
 	// No RAID
-	if raidInterface == "no-raid" {
+	if raidInterface == noRAIDInterface {
 		return
 	}
 
 	// Software RAID
-	if raidInterface == "agent" {
+	if raidInterface == softwareRAIDInterface {
 		cleanSteps = append(
 			cleanSteps,
 			[]nodes.CleanStep{
@@ -223,15 +228,21 @@ func BuildRAIDCleanSteps(raidInterface string, current *metal3v1alpha1.RAIDConfi
 }
 
 func checkRAIDConfigure(raidInterface string, raid *metal3v1alpha1.RAIDConfig) error {
-	if raidInterface == "no-raid" && raid != nil && (len(raid.HardwareRAIDVolumes) != 0 || len(raid.SoftwareRAIDVolumes) != 0) {
-		return fmt.Errorf("raid settings are defined, but the node's driver %s does not support RAID", raidInterface)
+	if raidInterface == noRAIDInterface {
+		if raid != nil && (len(raid.HardwareRAIDVolumes) != 0 || len(raid.SoftwareRAIDVolumes) != 0) {
+			return fmt.Errorf("raid settings are defined, but the node's driver %s does not support RAID", raidInterface)
+		}
+		return nil
 	}
 
-	if raidInterface == "agent" && raid != nil && len(raid.HardwareRAIDVolumes) != 0 {
-		return fmt.Errorf("node's driver %s does not support hardware RAID", raidInterface)
+	if raidInterface == softwareRAIDInterface {
+		if raid != nil && len(raid.HardwareRAIDVolumes) != 0 {
+			return fmt.Errorf("node's driver %s does not support hardware RAID", raidInterface)
+		}
+		return nil
 	}
 
-	if raidInterface != "agent" && raid != nil && len(raid.HardwareRAIDVolumes) == 0 && len(raid.SoftwareRAIDVolumes) != 0 {
+	if raid != nil && len(raid.HardwareRAIDVolumes) == 0 && len(raid.SoftwareRAIDVolumes) != 0 {
 		return fmt.Errorf("node's driver %s does not support software RAID", raidInterface)
 	}
 
